@@ -1,0 +1,85 @@
+openapi: 3.0.0
+info:
+  title: API интернет-магазина
+  description: API для управления товарами в интернет-магазине.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /products:
+    get:
+      summary: Получить список товаров
+      responses:
+        '200':
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      summary: Добавить новый товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Товар добавлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    put:
+      summary: Редактировать товар
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Товар обновлен
+
+    delete:
+      summary: Удалить товар
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Товар удален
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: integer
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string

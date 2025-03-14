@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Админ-панель | Управление товарами</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f4f4f4;
+      }
+      .container {
+        max-width: 900px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+      }
+      input,
+      textarea {
+        width: 100%;
+        margin: 5px 0;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: white;
+        border: none;
+      }
+      .btn-primary:hover {
+        background: #0056b3;
+      }
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+        border: none;
+      }
+      .btn-danger:hover {
+        background: #b02a37;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        padding: 10px;
+        border: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        background: #f8f9fa;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+      }
+      #chatArea {
+        margin-top: 30px;
+      }
+      #messages {
+        border: 1px solid #ccc;
+        min-height: 120px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Админ-панель | Управление товарами</h1>
+
+      <h2>Добавить/Редактировать товар</h2>
+      <form id="productForm">
+        <input type="hidden" id="productId" />
+        <input type="text" id="name" placeholder="Название" required />
+        <input type="number" id="price" placeholder="Цена" required />
+        <textarea id="description" placeholder="Описание"></textarea>
+        <input
+          type="text"
+          id="categories"
+          placeholder="Категории (через запятую)"
+        />
+        <button type="submit" class="btn-primary">Сохранить</button>
+      </form>
+
+      <h2>Список товаров</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Название</th>
+            <th>Цена</th>
+            <th>Описание</th>
+            <th>Категории</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="productList"></tbody>
+      </table>
+
+      <div id="chatArea">
+        <h2>Чат с покупателями (WebSocket)</h2>
+        <div id="messages"></div>
+        <input id="chatInput" type="text" placeholder="Сообщение..." />
+        <button id="sendBtn">Отправить</button>
+      </div>
+    </div>
+
+    <!-- Подключаем socket.io (из CDN) -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+      // Адрес REST-сервера (админский бэкенд)
+      const REST_URL = "http://localhost:8080/products";
+      // Адрес WebSocket-сервера (порт 3000, где у тебя Socket.io)
+      const SOCKET_URL = "http://localhost:3000";
+
+      // 1) Функция загрузки товаров
+      async function loadProducts() {
+        try {
+          const response = await fetch(REST_URL);
+          if (!response.ok) throw new Error("Ошибка загрузки товаров");
+
+          const products = await response.json();
+          const productList = document.getElementById("productList");
+          if (!productList) throw new Error("Элемент productList не найден");
+
+          productList.innerHTML = "";
+          products.forEach((product) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+          <td>${product.id}</td>
+          <td>${product.name}</td>
+          <td>${product.price} ₽</td>
+          <td>${product.description}</td>
+          <td>${product.categories.join(", ")}</td>
+          <td class="actions">
+            <button class="btn-primary" onclick="editProduct(${product.id}, '${
+              product.name
+            }', ${product.price}, '${
+              product.description
+            }', '${product.categories.join(", ")}')">
+              Редактировать
+            </button>
+            <button class="btn-danger" onclick="deleteProduct(${
+              product.id
+            })">Удалить</button>
+          </td>
+        `;
+            productList.appendChild(row);
+          });
+        } catch (error) {
+          console.error("Ошибка загрузки товаров:", error);
+        }
+      }
+
+      // 2) Функция удаления товара
+      async function deleteProduct(id) {
+        if (!confirm(`Вы уверены, что хотите удалить товар с ID ${id}?`))
+          return;
+        try {
+          const response = await fetch(`${REST_URL}/${id}`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (!response.ok) {
+            const errMsg = await response.json();
+            throw new Error(errMsg.error || "Ошибка удаления");
+          }
+          console.log(`✅ Товар с ID ${id} удалён`);
+          await loadProducts();
+        } catch (error) {
+          console.error("Ошибка удаления товара:", error);
+          alert("Ошибка удаления товара: " + error.message);
+        }
+      }
+
+      // 3) Функция редактирования (заглушка)
+      function editProduct(id, name, price, description, categories) {
+        document.getElementById("productId").value = id;
+        document.getElementById("name").value = name;
+        document.getElementById("price").value = price;
+        document.getElementById("description").value = description;
+        document.getElementById("categories").value = categories;
+      }
+
+      // 4) Функция добавления/редактирования товара (submit формы)
+      async function addProduct(event) {
+        event.preventDefault();
+
+        const productIdEl = document.getElementById("productId");
+        const name = document.getElementById("name").value.trim();
+        const price = parseFloat(document.getElementById("price").value);
+        const description = document.getElementById("description").value.trim();
+        const categoriesStr = document
+          .getElementById("categories")
+          .value.trim();
+        const categories = categoriesStr.split(",").map((c) => c.trim());
+
+        const idValue = productIdEl.value.trim();
+
+        if (!idValue) {
+          // Создаём новый товар
+          const newProduct = { name, price, description, categories };
+          try {
+            const response = await fetch(REST_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(newProduct),
+            });
+            if (!response.ok) throw new Error("Ошибка добавления товара");
+
+            console.log("✅ Товар успешно добавлен:", newProduct);
+            document.getElementById("productForm").reset();
+            await loadProducts();
+          } catch (error) {
+            console.error("Ошибка добавления товара:", error);
+            alert("Ошибка добавления товара: " + error.message);
+          }
+        } else {
+          // Здесь можно реализовать PATCH/PUT для редактирования
+          alert("Редактирование пока не реализовано!");
+        }
+      }
+
+      // 5) WebSocket (Socket.io) для чата
+      const socket = io(SOCKET_URL); // http://localhost:3000
+
+      socket.on("connect", () => {
+        console.log("Админ подключился к чату:", socket.id);
+      });
+
+      // При получении сообщения выводим в #messages
+      socket.on("chatMessage", (msg) => {
+        // msg = { text, role, senderId }
+        const div = document.getElementById("messages");
+        const p = document.createElement("p");
+        p.textContent = `${msg.role}: ${msg.text}`;
+        div.appendChild(p);
+      });
+
+      // Отправка сообщений в чат
+      document.getElementById("sendBtn").addEventListener("click", () => {
+        const input = document.getElementById("chatInput");
+        const text = input.value.trim();
+        if (!text) return;
+        socket.emit("chatMessage", { text, role: "admin" });
+        input.value = "";
+      });
+
+      // 6) Когда всё загружено – вешаем обработчик на форму и грузим товары
+      document.addEventListener("DOMContentLoaded", () => {
+        document
+          .getElementById("productForm")
+          .addEventListener("submit", addProduct);
+        loadProducts();
+      });
+    </script>
+  </body>
+</html>

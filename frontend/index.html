@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Каталог товаров (Покупатель)</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f4f4f4;
+      }
+      .container {
+        max-width: 800px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+      }
+      .product-card {
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin: 10px 0;
+      }
+      #chatArea {
+        margin-top: 30px;
+      }
+      #messages {
+        border: 1px solid #ccc;
+        min-height: 150px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Каталог товаров (GraphQL)</h1>
+      <div id="products"></div>
+
+      <div id="chatArea">
+        <h2>Чат с админом (WebSocket)</h2>
+        <div id="messages"></div>
+        <input id="chatInput" type="text" placeholder="Напишите сообщение..." />
+        <button id="chatBtn">Отправить</button>
+      </div>
+    </div>
+
+    <!-- Подключаем Socket.io (CDN) -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+      // 1) GraphQL-запрос на сервер покупателя (http://localhost:3000/graphql)
+      async function loadProducts() {
+        const graphqlQuery = {
+          query: `
+        query {
+          products {
+            id
+            name
+            price
+          }
+        }
+      `,
+        };
+        try {
+          const response = await fetch("http://localhost:3000/graphql", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(graphqlQuery),
+          });
+          if (!response.ok) throw new Error("GraphQL Error");
+          const result = await response.json();
+          const items = result.data.products; // массив товаров
+
+          const container = document.getElementById("products");
+          container.innerHTML = "";
+          items.forEach((prod) => {
+            const div = document.createElement("div");
+            div.classList.add("product-card");
+            div.innerHTML = `
+          <h3>[${prod.id}] ${prod.name}</h3>
+          <p>Цена: ${prod.price} ₽</p>
+        `;
+            container.appendChild(div);
+          });
+        } catch (err) {
+          console.error("Ошибка GraphQL:", err);
+        }
+      }
+
+      // 2) Инициализация Socket.io (к серверу на порту 3000)
+      const socket = io("http://localhost:3000");
+
+      // Подключение
+      socket.on("connect", () => {
+        console.log("WebSocket: Покупатель подключён, id =", socket.id);
+      });
+
+      // При получении сообщений обновляем #messages
+      const messagesDiv = document.getElementById("messages");
+      socket.on("chatMessage", (msg) => {
+        // msg = { text, role, senderId }
+        const p = document.createElement("p");
+        p.textContent = `${msg.role}: ${msg.text}`;
+        messagesDiv.appendChild(p);
+      });
+
+      // Отправка сообщений
+      document.getElementById("chatBtn").addEventListener("click", () => {
+        const input = document.getElementById("chatInput");
+        const text = input.value.trim();
+        if (!text) return;
+        // Отправляем событие chatMessage на сервер
+        socket.emit("chatMessage", { text, role: "user" });
+        input.value = "";
+      });
+
+      // Старт
+      loadProducts();
+    </script>
+  </body>
+</html>
